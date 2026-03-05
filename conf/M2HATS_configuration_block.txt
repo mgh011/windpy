@@ -1,0 +1,50 @@
+{
+  "dataset": "M2HATS",
+
+  "paths": {
+    "hf_dir": "/Users/mauro_ghirardelli/Documents/M2HATS/hourly",
+    "out_dir": "/Users/mauro_ghirardelli/Documents/M2HATS/processed_block"
+  },
+
+  "window": "30min",
+
+  "gapfill": {
+    "method": "interp"
+  },
+
+  "products": {
+    "bulk": true,
+    "spectra": true,
+    "cospectra": true,
+    "autocorr": false,
+    "microbarom": true,
+    "anisotropy": false
+  },
+
+  "fluctuations": {
+    "mode": "block",
+    "butterworth": {
+      "cutoff_seconds": 300.0,
+      "order": 4
+    }
+  },
+
+  "spectra": {
+    "welch": {
+      "segments": 17,
+      "overlap": 0.5,
+      "window": "hann",
+      "detrend": false,
+      "scaling": "density"
+    },
+    "log_binning": {
+      "enabled": false,
+      "N_bin": 80,
+      "mode": "area"
+    }
+  }
+}
+
+
+
+ 

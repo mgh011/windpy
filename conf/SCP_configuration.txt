@@ -1,0 +1,49 @@
+{
+  "dataset": "SCP",
+
+  "paths": {
+    "hf_dir": "/Users/mauro_ghirardelli/Documents/SCP/hourly",
+    "out_dir": "/Users/mauro_ghirardelli/Documents/SCP/processed"
+  },
+
+  "window": "30min",
+
+  "gapfill": {
+    "method": "interp"
+  },
+
+  "products": {
+    "bulk": true,
+    "spectra": true,
+    "cospectra": true,
+    "autocorr": false,
+    "microbarom": true,
+    "anisotropy": true
+  },
+
+  "fluctuations": {
+    "mode": "butterworth",
+    "butterworth": {
+      "cutoff_seconds": 300.0,
+      "order": 4
+    }
+  },
+
+  "spectra": {
+    "welch": {
+      "segments": 17,
+      "overlap": 0.5,
+      "window": "hann",
+      "detrend": false,
+      "scaling": "density"
+    },
+    "log_binning": {
+      "enabled": true,
+      "N_bin": 100,
+      "mode": "area"
+    }
+  }
+}
+
+
+ 
