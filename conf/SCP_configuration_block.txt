@@ -3,7 +3,7 @@
 
   "paths": {
     "hf_dir": "/Users/mauro_ghirardelli/Documents/SCP/hourly",
-    "out_dir": "/Users/mauro_ghirardelli/Documents/SCP/processed"
+    "out_dir": "/Users/mauro_ghirardelli/Documents/SCP/processed_block"
   },
 
   "window": "30min",
@@ -15,14 +15,14 @@
   "products": {
     "bulk": true,
     "spectra": true,
-    "cospectra": true,
+    "cospectra": false,
     "autocorr": false,
-    "microbarom": true,
-    "anisotropy": true
+    "microbarom": false,
+    "anisotropy": false
   },
 
   "fluctuations": {
-    "mode": "butterworth",
+    "mode": "block",
     "butterworth": {
       "cutoff_seconds": 300.0,
       "order": 4

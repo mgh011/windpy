@@ -48,7 +48,8 @@ def _welch_2d(x2d, fs, *, segments=None, overlap=0.0, window="hann", detrend="co
         nperseg=nperseg, noverlap=noverlap,
         scaling=scaling
     )
-    return f[1:], np.real(Pxx[..., 1:])
+    return f, np.real(Pxx)
+    #return f[1:], np.real(Pxx[..., 1:])
 
 
 def _csd_2d(x2d, y2d, fs, *, segments=None, overlap=0.0, window="hann", detrend="constant", scaling="density"):
@@ -64,7 +65,8 @@ def _csd_2d(x2d, y2d, fs, *, segments=None, overlap=0.0, window="hann", detrend=
         nperseg=nperseg, noverlap=noverlap,
         scaling=scaling
     )
-    return f[1:], Pxy[..., 1:]
+    return f, np.real(Pxy)
+    #return f[1:], Pxy[..., 1:]
 
 
 def spectra_welch(ds_fluct, window, *, segments=3, overlap=0.5, window_type="hann", detrend="constant"):
@@ -167,8 +169,78 @@ def spectra_welch(ds_fluct, window, *, segments=3, overlap=0.5, window_type="han
 
     return xr.concat(out_blocks, dim="time")
 
-
 def spectral_slopes_epsilon(spectra, Umean):
+    """
+    Compute epsilon + slopes from autospectra su,sv,sw,sT using a cutoff f_c = U/(2π z).
+
+    spectra: Dataset with dims (time,tower,height,freq) and vars su,sv,sw,sT
+    Umean: DataArray with dims (time,tower,height) (or broadcastable)
+    """
+    if "height" not in spectra.coords:
+        raise ValueError("spectral_slopes_epsilon expects coord 'height'.")
+
+    # IMPORTANT:
+    # keep f=0 in saved spectra for variance closure,
+    # but remove it here because slopes/log10 need strictly positive freq.
+    spectra_pos = spectra.where(spectra.freq > 0, drop=True)
+
+    z = spectra_pos["height"]
+
+    # cutoff broadcast: (time,tower,height)
+    cutoff = Umean / (2.0 * np.pi * z)
+
+    S = spectra_pos[["su", "sv", "sw", "sT"]]
+    S = S.where(S > 0)   # remove zeros and negatives
+
+    # high freq range: f > cutoff AND avoid last bins
+    fmax = spectra_pos["freq"].isel(freq=-8)
+    Sh = S.where((spectra_pos.freq > cutoff) & (spectra_pos.freq < fmax))
+
+    # push left limit to first maximum (using su peak as before)
+    f_peak = Sh["su"].idxmax(dim="freq")
+    Sh = Sh.where(spectra_pos.freq > f_peak)
+
+    Sl = S.where(spectra_pos.freq < cutoff)
+
+    # constants
+    cu = 18 / 55 * 1.5
+    cvw = cu * 4 / 3
+    cT = 0.8
+
+    # epsilon (median over freq)
+    epsU = (2*np.pi/Umean * (Sh.freq**(5/3) * Sh.su / cu)**(3/2)).median("freq").rename("epsU")
+    epsV = (2*np.pi/Umean * (Sh.freq**(5/3) * Sh.sv / cvw)**(3/2)).median("freq").rename("epsV")
+    epsW = (2*np.pi/Umean * (Sh.freq**(5/3) * Sh.sw / cvw)**(3/2)).median("freq").rename("epsW")
+    epsT = (((2*np.pi/Umean)**(2/3)) * (Sh.freq**(5/3)) * Sh.sT * (epsU**(1/3)) / cT).median("freq").rename("epsT")
+
+    epsilon = xr.merge([epsU, epsV, epsW, epsT])
+
+    # slopes: fit log10(S) vs log10(f)
+    Sh_log = np.log10(Sh).assign_coords(freq=np.log10(Sh.freq))
+    Sl_log = np.log10(Sl).assign_coords(freq=np.log10(Sl.freq))
+
+    slopes_h = Sh_log.polyfit("freq", deg=1).sel(degree=1).drop_vars("degree").rename(
+        dict(
+            su_polyfit_coefficients="slopeHU",
+            sv_polyfit_coefficients="slopeHV",
+            sw_polyfit_coefficients="slopeHW",
+            sT_polyfit_coefficients="slopeHT",
+        )
+    )
+
+    slopes_l = Sl_log.polyfit("freq", deg=1).sel(degree=1).drop_vars("degree").rename(
+        dict(
+            su_polyfit_coefficients="slopeLU",
+            sv_polyfit_coefficients="slopeLV",
+            sw_polyfit_coefficients="slopeLW",
+            sT_polyfit_coefficients="slopeLT",
+        )
+    )
+
+    slopes = xr.merge([slopes_h, slopes_l])
+    return slopes, epsilon
+
+def spectral_slopes_epsilon_old(spectra, Umean):
     """
     Compute epsilon + slopes from autospectra su,sv,sw,sT using a cutoff f_c = U/(2π z).
 

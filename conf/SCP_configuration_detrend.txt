@@ -3,7 +3,7 @@
 
   "paths": {
     "hf_dir": "/Users/mauro_ghirardelli/Documents/SCP/hourly",
-    "out_dir": "/Users/mauro_ghirardelli/Documents/SCP/processed"
+    "out_dir": "/Users/mauro_ghirardelli/Documents/SCP/processed_detrend"
   },
 
   "window": "30min",
@@ -22,7 +22,7 @@
   },
 
   "fluctuations": {
-    "mode": "butterworth",
+    "mode": "detrend",
     "butterworth": {
       "cutoff_seconds": 300.0,
       "order": 4

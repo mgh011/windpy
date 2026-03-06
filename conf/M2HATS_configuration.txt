@@ -38,7 +38,7 @@
       "scaling": "density"
     },
     "log_binning": {
-      "enabled": false,
+      "enabled": true,
       "N_bin": 100,
       "mode": "area"
     }

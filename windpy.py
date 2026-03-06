@@ -216,7 +216,7 @@ def run_and_save_one_file(cfg_path, filename, output_dir):
 
 if __name__ == "__main__":
 
-    CFG = "/Users/mauro_ghirardelli/Documents/windpy/conf/M2HATS_configuration.txt"
+    CFG = "/Users/mauro_ghirardelli/Documents/windpy/conf/SCP_configuration_detrend.txt"
 
     # directories are already in the config, but we read hf_dir explicitly
     with open(CFG, "r") as f:
