@@ -240,73 +240,6 @@ def spectral_slopes_epsilon(spectra, Umean):
     slopes = xr.merge([slopes_h, slopes_l])
     return slopes, epsilon
 
-def spectral_slopes_epsilon_old(spectra, Umean):
-    """
-    Compute epsilon + slopes from autospectra su,sv,sw,sT using a cutoff f_c = U/(2π z).
-
-    spectra: Dataset with dims (time,tower,height,freq) and vars su,sv,sw,sT
-    Umean: DataArray with dims (time,tower,height) (or broadcastable)
-    """
-    if "height" not in spectra.coords:
-        raise ValueError("spectral_slopes_epsilon expects coord 'height'.")
-    z = spectra["height"]
-
-    # cutoff broadcast: (time,tower,height)
-    cutoff = Umean / (2.0 * np.pi * z)
-
-    S = spectra[["su", "sv", "sw", "sT"]]
-    S = S.where(S > 0)   # elimina zeri e negativi
-
-
-    # high freq range: f > cutoff AND avoid last bins
-    fmax = spectra["freq"].isel(freq=-8)
-    Sh = S.where((spectra.freq > cutoff) & (spectra.freq < fmax))
-
-    # push left limit to first maximum (per component)
-    # (keeps the original idea, but simplified: use su peak)
-    f_peak = Sh["su"].idxmax(dim="freq")
-    Sh = Sh.where(spectra.freq > f_peak)
-
-    Sl = S.where(spectra.freq < cutoff)
-
-    # constants
-    cu = 18 / 55 * 1.5
-    cvw = cu * 4 / 3
-    cT = 0.8
-
-    # epsilon (median over freq)
-    epsU = (2*np.pi/Umean * (Sh.freq**(5/3) * Sh.su / cu)**(3/2)).median("freq").rename("epsU")
-    epsV = (2*np.pi/Umean * (Sh.freq**(5/3) * Sh.sv / cvw)**(3/2)).median("freq").rename("epsV")
-    epsW = (2*np.pi/Umean * (Sh.freq**(5/3) * Sh.sw / cvw)**(3/2)).median("freq").rename("epsW")
-    epsT = (((2*np.pi/Umean)**(2/3)) * (Sh.freq**(5/3)) * Sh.sT * (epsU**(1/3)) / cT).median("freq").rename("epsT")
-
-    epsilon = xr.merge([epsU, epsV, epsW, epsT])
-
-    # slopes: fit log10(S) vs log10(f)
-    Sh_log = np.log10(Sh).assign_coords(freq=np.log10(Sh.freq))
-    Sl_log = np.log10(Sl).assign_coords(freq=np.log10(Sl.freq))
-
-    slopes_h = Sh_log.polyfit("freq", deg=1).sel(degree=1).drop_vars("degree").rename(
-        dict(
-            su_polyfit_coefficients="slopeHU",
-            sv_polyfit_coefficients="slopeHV",
-            sw_polyfit_coefficients="slopeHW",
-            sT_polyfit_coefficients="slopeHT",
-        )
-    )
-
-    slopes_l = Sl_log.polyfit("freq", deg=1).sel(degree=1).drop_vars("degree").rename(
-        dict(
-            su_polyfit_coefficients="slopeLU",
-            sv_polyfit_coefficients="slopeLV",
-            sw_polyfit_coefficients="slopeLW",
-            sT_polyfit_coefficients="slopeLT",
-        )
-    )
-
-    slopes = xr.merge([slopes_h, slopes_l])
-    return slopes, epsilon
-
 
 def spectra_eps(ds, config, Umean, *, welch_segments=3, welch_overlap=0.5):
     """
@@ -340,9 +273,76 @@ def spectra_eps(ds, config, Umean, *, welch_segments=3, welch_overlap=0.5):
     slopes, epsilon = spectral_slopes_epsilon(welch, Umean)
     return welch, epsilon, slopes
 
-
-
 def bin_spectra_log(ds, N_bin=80, freq_name="freq", out_freq_name="freq_bin", mode="area"):
+    """
+    Log-resample spectral variables using log-log interpolation.
+    Preserves spectral shape but not necessarily area.
+    """
+
+    import numpy as np
+    import xarray as xr
+
+    freq0 = np.asarray(ds[freq_name].values)
+
+    valid = np.isfinite(freq0) & (freq0 > 0)
+    fpos = freq0[valid]
+
+    freq_bin = np.logspace(np.log10(fpos.min()), np.log10(fpos.max()), N_bin)
+
+    def _interp_1d(spec):
+
+        spec = np.asarray(spec)
+
+        valid = np.isfinite(freq0) & (freq0 > 0) & np.isfinite(spec) & (spec > 0)
+
+        f = freq0[valid]
+        s = spec[valid]
+
+        if f.size < 2:
+            return np.full(N_bin, np.nan)
+
+        order = np.argsort(f)
+        f = f[order]
+        s = s[order]
+
+        out = 10 ** np.interp(
+            np.log10(freq_bin),
+            np.log10(f),
+            np.log10(s)
+        )
+
+        return out
+
+    out_vars = {}
+
+    for name, da in ds.data_vars.items():
+
+        if freq_name not in da.dims:
+            out_vars[name] = da
+            continue
+
+        binned = xr.apply_ufunc(
+            _interp_1d,
+            da,
+            input_core_dims=[[freq_name]],
+            output_core_dims=[[out_freq_name]],
+            vectorize=True,
+            dask="allowed",
+            output_dtypes=[float],
+            dask_gufunc_kwargs={"output_sizes": {out_freq_name: N_bin}},
+        ).assign_coords({out_freq_name: freq_bin})
+
+        out_vars[name] = binned
+
+    out = xr.Dataset(data_vars=out_vars, coords=dict(ds.coords))
+    out = out.drop_vars(freq_name, errors="ignore")
+    out = out.assign_coords({out_freq_name: freq_bin})
+    out = out.rename({out_freq_name: freq_name})
+
+    return out
+
+
+def bin_spectra_log_old(ds, N_bin=80, freq_name="freq", out_freq_name="freq_bin", mode="area"):
     """
     Log-bin all spectral variables along frequency.
 

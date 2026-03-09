@@ -215,6 +215,7 @@ def butterworth_highpass(ds, cutoff_seconds, order=4):
     xarray.Dataset
         High-pass filtered dataset (time domain).
     """
+    
     # infer sampling frequency
     dt = (ds.time.diff("time") / np.timedelta64(1, "s")).median().item()
     fs = 1.0 / dt
@@ -229,6 +230,9 @@ def butterworth_highpass(ds, cutoff_seconds, order=4):
     for v in ds.data_vars:
         da = ds[v]
         axis = da.get_axis_num("time")
+
+        # ---- REMOVE MEAN FIRST (important for stability) ----
+        da = da - da.mean(dim="time")
 
         filtered = xr.apply_ufunc(
             signal.filtfilt,

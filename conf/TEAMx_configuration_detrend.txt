@@ -3,7 +3,7 @@
 
   "paths": {
     "hf_dir": "/Users/mauro_ghirardelli/Documents/TEAMx/hourly",
-    "out_dir": "/Users/mauro_ghirardelli/Documents/TEAMx/processed"
+    "out_dir": "/Users/mauro_ghirardelli/Documents/TEAMx/processed_detrend"
   },
 
   "window": "30min",
@@ -22,7 +22,7 @@
   },
 
   "fluctuations": {
-    "mode": "butterworth",
+    "mode": "detrend",
     "butterworth": {
       "cutoff_seconds": 300.0,
       "order": 4
@@ -38,7 +38,7 @@
       "scaling": "density"
     },
     "log_binning": {
-      "enabled": true,
+      "enabled": false,
       "N_bin": 100,
       "mode": "area"
     }
